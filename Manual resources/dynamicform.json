@@ -1,0 +1,53 @@
+[
+    {
+        "key":  "gridUsersPassExpire",
+        "templateOptions":  {
+                                "label":  "Users with password that expires in 14 days",
+                                "required":  false,
+                                "grid":  {
+                                             "columns":  [
+                                                             {
+                                                                 "headerName":  "Expiry Date",
+                                                                 "field":  "ExpiryDate"
+                                                             },
+                                                             {
+                                                                 "headerName":  "Display Name",
+                                                                 "field":  "DisplayName"
+                                                             },
+                                                             {
+                                                                 "headerName":  "User Principal Name",
+                                                                 "field":  "UserPrincipalName"
+                                                             },
+                                                             {
+                                                                 "headerName":  "Sam Account Name",
+                                                                 "field":  "SamAccountName"
+                                                             },
+                                                             {
+                                                                 "headerName":  "Mail",
+                                                                 "field":  "Mail"
+                                                             },
+                                                             {
+                                                                 "headerName":  "Description",
+                                                                 "field":  "Description"
+                                                             }
+                                                         ],
+                                             "height":  300,
+                                             "rowSelection":  "single"
+                                         },
+                                "dataSourceConfig":  {
+                                                         "dataSourceGuid":  "$dataSourceGuid_0",
+                                                         "input":  {
+                                                                       "propertyInputs":  [
+
+                                                                                          ]
+                                                                   }
+                                                     },
+                                "useFilter":  true,
+                                "useDefault":  false
+                            },
+        "type":  "grid",
+        "summaryVisibility":  "Show",
+        "requiresTemplateOptions":  true,
+        "requiresKey":  true
+    }
+]
