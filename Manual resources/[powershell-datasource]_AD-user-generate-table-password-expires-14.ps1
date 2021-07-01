@@ -14,8 +14,11 @@ try{
             $ExpireDate = $ConvertDate.ToShortDateString()
         
             If ($ExpireDate -eq $dateBeforeExpire) {
+                $formattedDate = $ConvertDate.ToString("dd-MM-yyyy")
+                $adUser | Add-Member -MemberType NoteProperty -Name FormattedDate -Value $formattedDate -Force
+
                 $null = $adUsersWithPasswordAboutToExpire.Add($adUser)
-                if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name)'s password will expire in $daysBeforeExpire days on: $($adUser.ExpiryDate)" }
+                if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name)'s password will expire in $daysBeforeExpire days on: $($adUser.FormattedDate)" }
             }
         }else{
             if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name) has no ExpiryDate" }
@@ -34,7 +37,7 @@ try{
                 UserPrincipalName=$user.UserPrincipalName;
                 Mail=$user.mail;
                 Description=$user.Description;
-                ExpiryDate=$user.ExpiryDate
+                ExpiryDate=$user.FormattedDate;
             }
             Write-Output $returnObject
         }
