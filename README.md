@@ -2,7 +2,14 @@
 ## Description
 This HelloID Service Automation Delegated Form provides an Active Directory report containing the user accounts with a password that will expire in 14 days. The following options are available:
  1. Overview of AD user accounts that match this report
- 
+
+
+## Versioning
+| Version | Description | Date |
+| - | - | - |
+| 1.0.1   | Added version number and updated all-in-one script | 2021/11/03  |
+| 1.0.0   | Initial release | 2021/07/01  |
+
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
 * [Description](#description)
@@ -10,6 +17,7 @@ This HelloID Service Automation Delegated Form provides an Active Directory repo
   * [Getting started](#getting-started)
 * [Post-setup configuration](#post-setup-configuration)
 * [Manual resources](#manual-resources)
+* [Getting help](#getting-help)
 
 
 ## All-in-one PowerShell setup script
@@ -30,5 +38,8 @@ This Powershell data source runs an Active Directory query to select the AD user
 ### Delegated form task 'AD Account - List users with password that expires in 14 days'
 This delegated form task runs the same Active Directory query as the task data source.
 
-# HelloID Docs
+## Getting help
+_If you need help, feel free to ask questions on our [forum](https://forum.helloid.com/forum/helloid-connectors/service-automation/502-helloid-sa-active-directory-report-ad-accounts-password-expire-within-14-days)_
+
+## HelloID Docs
 The official HelloID documentation can be found at: https://docs.helloid.com/
