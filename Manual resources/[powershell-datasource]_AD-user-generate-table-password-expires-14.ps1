@@ -13,7 +13,7 @@ try{
             [datetime]$ConvertDate = $adUser.ExpiryDate
             $ExpireDate = $ConvertDate.ToShortDateString()
         
-            If ($ExpireDate -eq $dateBeforeExpire) {
+            If ($ExpireDate -ne "1/1/1601" -and [datetime]$ExpireDate -lt [datetime]$dateBeforeExpire) {
                 $formattedDate = $ConvertDate.ToString("dd-MM-yyyy")
                 $adUser | Add-Member -MemberType NoteProperty -Name FormattedDate -Value $formattedDate -Force
 
