@@ -6,8 +6,8 @@
 $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
-$delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
-$delegatedFormCategories = @("User Management","Active Directory") #Only unique names are supported. Categories will be created if not exists
+$delegatedFormAccessGroupNames = @("") #Only unique names are supported. Groups must exist!
+$delegatedFormCategories = @("Active Directory","Reporting") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
 $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID resource names to generate a duplicate form with different resource names
@@ -15,6 +15,15 @@ $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID re
 #The following HelloID Global variables are used by this form. No existing HelloID global variables will be overriden only new ones are created.
 #NOTE: You can also update the HelloID Global variable values afterwards in the HelloID Admin Portal: https://<CUSTOMER>.helloid.com/admin/variablelibrary
 $globalHelloIDVariables = [System.Collections.Generic.List[object]]@();
+
+#Global variable #1 >> AdUsersReportOu
+$tmpName = @'
+AdUsersReportOu
+'@ 
+$tmpValue = @'
+OU=Users,OU=HelloID,DC=enyoi,DC=local;OU=Users,OU=HelloID Training,DC=enyoi,DC=local;OU=Disabled users,OU=HelloID Training,DC=enyoi,DC=local
+'@ 
+$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
 
 #make sure write-information logging is visual
@@ -153,6 +162,7 @@ function Invoke-HelloIDDatasource {
         [parameter()][String][AllowEmptyString()]$DatasourcePsScript,        
         [parameter()][String][AllowEmptyString()]$DatasourceInput,
         [parameter()][String][AllowEmptyString()]$AutomationTaskGuid,
+        [parameter()][String][AllowEmptyString()]$DatasourceRunInCloud,
         [parameter(Mandatory)][Ref]$returnObject
     )
 
@@ -179,6 +189,7 @@ function Invoke-HelloIDDatasource {
                 value              = (ConvertFrom-Json-WithEmptyArray($DatasourceStaticValue));
                 script             = $DatasourcePsScript;
                 input              = (ConvertFrom-Json-WithEmptyArray($DatasourceInput));
+                runInCloud         = $DatasourceRunInCloud;
             }
             $body = ConvertTo-Json -InputObject $body -Depth 100
       
@@ -313,29 +324,65 @@ foreach ($item in $globalHelloIDVariables) {
 
 
 <# Begin: HelloID Data sources #>
-<# Begin: DataSource "AD-user-generate-table-password-expires-14" #>
+<# Begin: DataSource "report-ad-password-expiring-in-14-days | AD-Get-Users-Password-Expiring-In-14-Days" #>
 $tmpPsScript = @'
+#######################################################################
+# Template: HelloID SA Powershell data source
+# Name: report-ad-password-expiring-in-14-days | AD-Get-Users-Password-Expiring-In-14-Days
+# Date: 23-02-2026
+#######################################################################
+
+# For basic information about powershell data sources see:
+# https://docs.helloid.com/en/service-automation/dynamic-forms/data-sources/powershell-data-sources.html
+
+# Service automation variables:
+# https://docs.helloid.com/en/service-automation/service-automation-variables.html
+
+#region init
+
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
 $debugLogging = $false
 $daysBeforeExpire = 14
 
-try{
-    $dateBeforeExpire = (Get-Date).addDays($daysBeforeExpire).ToShortDateString()
+# global variables (Automation --> Variable library):
+$searchOUs = $AdUsersReportOu
 
-    $adUsers = Get-ADUser -filter {Enabled -eq $True -and PasswordNeverExpires -eq $False} -Properties "SamAccountName","userPrincipalName", "displayName", "Name", "mail", "Description", "msDS-UserPasswordExpiryTimeComputed" |
-        Select-Object "SamAccountName","userPrincipalName", "displayName","Name", "mail", "Description", @{Name="ExpiryDate";Expression={[datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed").ToShortDateString() }}
+# variables configured in form:
+# $formValue1 = $datasource.<formElementKey>.<value>
+# $formValue2 = $datasource.<formElementKey>
+
+#endregion init
+
+#region functions
+
+#endregion functions
+
+#region lookup
+try{
+    $actionMessage = "querying AD for users with passwords expiring in $daysBeforeExpire days"
+    $filter = {Enabled -eq $True -and PasswordNeverExpires -eq $False}
+    $properties = "SamAccountName","userPrincipalName", "displayName", "Name", "mail", "Description", "msDS-UserPasswordExpiryTimeComputed"
+    $dateBeforeExpire = (Get-Date).addDays($daysBeforeExpire)
+
+    $ous = $searchOUs -split ';'
+    $adUsers = foreach($item in $ous) {
+        Get-ADUser -filter $filter -SearchBase $item -Properties $properties | Select-Object "SamAccountName","userPrincipalName", "displayName","Name", "mail", "Description", @{Name="ExpiryDate";Expression={[datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") }}
+    }
 
     [System.Collections.ArrayList]$adUsersWithPasswordAboutToExpire =  @()
     foreach($adUser in $adUsers){
-        if(![String]::IsNullOrEmpty($adUser.ExpiryDate)){
-            [datetime]$ConvertDate = $adUser.ExpiryDate
-            $ExpireDate = $ConvertDate.ToShortDateString()
+        if($null -ne $adUser.ExpiryDate){
+            $expiryDate = $adUser.ExpiryDate
         
-            If ($ExpireDate -ne "1/1/1601" -and [datetime]$ExpireDate -lt [datetime]$dateBeforeExpire) {
-                $formattedDate = $ConvertDate.ToString("dd-MM-yyyy")
+            If ($expiryDate.Year -ne 1600 -and $expiryDate -lt $dateBeforeExpire) {
+                $formattedDate = $expiryDate.ToString("dd-MM-yyyy")
                 $adUser | Add-Member -MemberType NoteProperty -Name FormattedDate -Value $formattedDate -Force
 
                 $null = $adUsersWithPasswordAboutToExpire.Add($adUser)
-                if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name)'s password will expire in $daysBeforeExpire days on: $($adUser.FormattedDate)" }
+                if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name)'s password will expire in $daysBeforeExpire days on: $formattedDate" }
             }
         }else{
             if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name) has no ExpiryDate" }
@@ -358,33 +405,39 @@ try{
             }
             Write-Output $returnObject
         }
+    } else {
+        return
     }
 }catch{
-    throw "Could not gather users with passwords about to expire in $daysBeforeExpire days. Error: $_"
+    $ex = $PSItem
+    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    # exit # use when using multiple try/catch and the script must stop
 }
+#endregion lookup
 '@ 
 $tmpModel = @'
-[{"key":"ExpiryDate","type":0},{"key":"UserPrincipalName","type":0},{"key":"SamAccountName","type":0},{"key":"DisplayName","type":0},{"key":"Mail","type":0},{"key":"Name","type":0},{"key":"Description","type":0}]
+[{"key":"DisplayName","type":0},{"key":"Name","type":0},{"key":"SamAccountName","type":0},{"key":"UserPrincipalName","type":0},{"key":"Mail","type":0},{"key":"Description","type":0},{"key":"ExpiryDate","type":0}]
 '@ 
 $tmpInput = @'
 []
 '@ 
 $dataSourceGuid_0 = [PSCustomObject]@{} 
 $dataSourceGuid_0_Name = @'
-AD-user-generate-table-password-expires-14
+report-ad-password-expiring-in-14-days | AD-Get-Users-Password-Expiring-In-14-Days
 '@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_0_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_0) 
-<# End: DataSource "AD-user-generate-table-password-expires-14" #>
+Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_0_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -DataSourceRunInCloud "False" -returnObject ([Ref]$dataSourceGuid_0) 
+<# End: DataSource "report-ad-password-expiring-in-14-days | AD-Get-Users-Password-Expiring-In-14-Days" #>
 <# End: HelloID Data sources #>
 
-<# Begin: Dynamic Form "AD Account - List users with password that expires in 14 days" #>
+<# Begin: Dynamic Form "Report - AD password expiring in 14 days" #>
 $tmpSchema = @"
-[{"key":"gridUsersPassExpire","templateOptions":{"label":"Users with password that expires in 14 days","required":false,"grid":{"columns":[{"headerName":"Expiry Date","field":"ExpiryDate"},{"headerName":"Display Name","field":"DisplayName"},{"headerName":"User Principal Name","field":"UserPrincipalName"},{"headerName":"Sam Account Name","field":"SamAccountName"},{"headerName":"Mail","field":"Mail"},{"headerName":"Description","field":"Description"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[]}},"useFilter":true,"useDefault":false},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true}]
+[{"key":"gridUsersPassExpire","templateOptions":{"label":"Users with password that expires in 14 days","required":false,"grid":{"columns":[{"headerName":"Expiry Date","field":"ExpiryDate"},{"headerName":"Display Name","field":"DisplayName"},{"headerName":"User Principal Name","field":"UserPrincipalName"},{"headerName":"Sam Account Name","field":"SamAccountName"},{"headerName":"Mail","field":"Mail"},{"headerName":"Description","field":"Description"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[]}},"useFilter":true,"useDefault":false,"allowCsvDownload":true},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":true},{"key":"textInput","templateOptions":{"label":"Reporting only","required":true,"minLength":1,"readonly":true},"type":"input","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}]
 "@ 
 
 $dynamicFormGuid = [PSCustomObject]@{} 
 $dynamicFormName = @'
-AD Account - List users with password that expires in 14 days
+Report - AD password expiring in 14 days
 '@ 
 Invoke-HelloIDDynamicForm -FormName $dynamicFormName -FormSchema $tmpSchema  -returnObject ([Ref]$dynamicFormGuid) 
 <# END: Dynamic Form #>
@@ -441,12 +494,12 @@ $delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategor
 <# Begin: Delegated Form #>
 $delegatedFormRef = [PSCustomObject]@{guid = $null; created = $null} 
 $delegatedFormName = @'
-AD Account - List users with password that expires in 14 days
+Report - AD password expiring in 14 days
 '@
 $tmpTask = @'
-{"name":"AD Account - List users with password that expires in 14 days","script":"# your script here","runInCloud":false}
+{"name":"Report - AD password expiring in 14 days","script":"# No tasks are performed","runInCloud":false}
 '@ 
 
-Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-th-list" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
+Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-list" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
 <# End: Delegated Form #>
 
