@@ -50,7 +50,7 @@ The following user-defined variables are used by the connector.
 
 ### Customization
 - **Adjustable Time Window**: The 14-day window can be adjusted by modifying the `$daysBeforeExpire` variable in the data source script.
-- **Additional Columns**: The report includes DisplayName, Name, SamAccountName, UserPrincipalName, Mail, Description, and ExpiryDate. Additional AD properties can be added as needed.
+- **Additional Columns**: The report includes DisplayName, SamAccountName, UserPrincipalName, Mail, Description, and ExpiryDate. Additional AD properties can be added as needed.
 
 ## Development resources
 
