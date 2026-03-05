@@ -16,9 +16,9 @@ $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID re
 #NOTE: You can also update the HelloID Global variable values afterwards in the HelloID Admin Portal: https://<CUSTOMER>.helloid.com/admin/variablelibrary
 $globalHelloIDVariables = [System.Collections.Generic.List[object]]@();
 
-#Global variable #1 >> AdUsersReportOu
+#Global variable #1 >> AdReportSearchOu
 $tmpName = @'
-AdUsersReportOu
+AdReportSearchOu
 '@ 
 $tmpValue = @'
 OU=Users,OU=HelloID,DC=enyoi,DC=local;OU=Users,OU=HelloID Training,DC=enyoi,DC=local;OU=Disabled users,OU=HelloID Training,DC=enyoi,DC=local
@@ -348,7 +348,7 @@ $debugLogging = $false
 $daysBeforeExpire = 14
 
 # global variables (Automation --> Variable library):
-$searchOUs = $AdUsersReportOu
+$searchOUs = $AdReportSearchOu
 
 # variables configured in form:
 # $formValue1 = $datasource.<formElementKey>.<value>
@@ -372,16 +372,25 @@ try{
         Get-ADUser -filter $filter -SearchBase $item -Properties $properties | Select-Object "SamAccountName","userPrincipalName", "displayName","Name", "mail", "Description", @{Name="ExpiryDate";Expression={[datetime]::FromFileTime($_."msDS-UserPasswordExpiryTimeComputed") }}
     }
 
-    [System.Collections.ArrayList]$adUsersWithPasswordAboutToExpire =  @()
+    $resultCount = 0
     foreach($adUser in $adUsers){
         if($null -ne $adUser.ExpiryDate){
             $expiryDate = $adUser.ExpiryDate
         
             If ($expiryDate.Year -ne 1600 -and $expiryDate -lt $dateBeforeExpire) {
                 $formattedDate = $expiryDate.ToString("dd-MM-yyyy")
-                $adUser | Add-Member -MemberType NoteProperty -Name FormattedDate -Value $formattedDate -Force
-
-                $null = $adUsersWithPasswordAboutToExpire.Add($adUser)
+                
+                Write-Output ([Ordered]@{
+                    DisplayName=$adUser.displayName;
+                    Name=$adUser.Name;
+                    SamAccountName=$adUser.SamAccountName;
+                    UserPrincipalName=$adUser.UserPrincipalName;
+                    Mail=$adUser.mail;
+                    Description=$adUser.Description;
+                    ExpiryDate=$formattedDate;
+                })
+                $resultCount++
+                
                 if($debugLogging -eq $true){ Write-Verbose -Verbose "User $($adUser.Name)'s password will expire in $daysBeforeExpire days on: $formattedDate" }
             }
         }else{
@@ -389,25 +398,7 @@ try{
         }
     }
 
-    $resultCount = @($adUsersWithPasswordAboutToExpire).Count
     Write-Information "Result count: $resultCount"
-        
-    if($resultCount -gt 0){
-        foreach($user in $adUsersWithPasswordAboutToExpire){
-            $returnObject = [Ordered]@{
-                DisplayName=$user.displayName;
-                Name=$user.Name;
-                SamAccountName=$user.SamAccountName;
-                UserPrincipalName=$user.UserPrincipalName;
-                Mail=$user.mail;
-                Description=$user.Description;
-                ExpiryDate=$user.FormattedDate;
-            }
-            Write-Output $returnObject
-        }
-    } else {
-        return
-    }
 }catch{
     $ex = $PSItem
     Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
